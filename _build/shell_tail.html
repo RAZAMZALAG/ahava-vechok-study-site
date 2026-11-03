@@ -1,0 +1,511 @@
+</main>
+</div>
+
+<section id="comments">
+  <div class="cinner">
+    <h2>הערות על הדף<span id="ccount"></span></h2>
+    <p class="sub">כל מי שנכנס לדף יכול להוסיף הערה — בלי הרשמה, רק שם וטקסט. ההערות משותפות לכולם, וכפתור 💬 מופיע בתחתית כל כרטיס כשעוברים עליו עם העכבר.</p>
+    <div class="ccols">
+      <div class="ccol">
+        <h3>לפי כרטיס</h3>
+        <div id="cbycard"></div>
+      </div>
+      <div class="ccol">
+        <h3>כלליות על הדף</h3>
+        <div id="cgeneral"></div>
+        <p style="margin-top:.7rem"><button type="button" id="caddgeneral" class="solbtn">💬 הוספת הערה כללית</button></p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="footer">
+  תורגם ונערך מתוך <code>{{SRCPDF}}</code> · {{NSLIDES}} · כל התכנים, הדיאגרמות והתמונות נשמרו.
+  תיבות <span style="color:var(--noteb)">💡 הסבר</span>, <span style="color:var(--warnb)">⚠️ שים לב</span> ו-<span style="color:var(--deepb)">🔎 העמקה</span> הן תוספות שאינן במקור. <strong>חומר המבחן הוא ההרצאות והתרגולים</strong>; העמקות וחומר מהסיכומים הם עזר בלבד.
+  <br>קיצורים: <kbd>Ctrl</kbd>+<kbd>F</kbd> לחיפוש הדפדפן · תיבת החיפוש למעלה מדלגת בין התאמות (<kbd>Enter</kbd> / <kbd>Shift</kbd>+<kbd>Enter</kbd>) · ❯ שליד תוכן העניינים הצידה · 🖨️ להדפסה או ייצוא ל-PDF.
+</div>
+
+{{CONF}}
+<script>
+/* click a lecture-slide figure to view it full screen; click again or Esc to close */
+document.addEventListener('click', function(e){
+  var f = e.target.closest && e.target.closest('figure.sfig');
+  if (f && e.target.tagName === 'IMG') { f.classList.toggle('zoom'); }
+  else if (f && f.classList.contains('zoom')) { f.classList.remove('zoom'); }
+});
+document.addEventListener('keydown', function(e){
+  if (e.key === 'Escape') document.querySelectorAll('figure.sfig.zoom').forEach(function(f){ f.classList.remove('zoom'); });
+});
+</script>
+<script>
+(function(){
+  // ---------- theme ----------
+  var root = document.documentElement;
+  var saved = null;
+  try { saved = localStorage.getItem('st2theme'); } catch(e){}
+  if (saved) root.setAttribute('data-theme', saved);
+  document.getElementById('theme').addEventListener('click', function(){
+    var cur = root.getAttribute('data-theme');
+    if (!cur) cur = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    var nxt = cur === 'dark' ? 'light' : 'dark';
+    root.setAttribute('data-theme', nxt);
+    try { localStorage.setItem('st2theme', nxt); } catch(e){}
+  });
+
+  // ---------- contents panel ----------
+  var tocBtn = document.getElementById('toctoggle');
+  var tocEl  = document.querySelector('nav.toc');
+  function applyToc(off){
+    document.body.classList.toggle('tocoff', off);
+    // the chevron points at the side the panel is about to move to: the contents
+    // sit on the right, so an open panel folds right and a folded one comes back
+    tocBtn.textContent = off ? '❮' : '❯';
+    tocBtn.setAttribute('aria-expanded', off ? 'false' : 'true');
+    tocBtn.title = off ? 'הצג את תוכן העניינים' : 'הסתר את תוכן העניינים';
+    try { localStorage.setItem('st2toc', off ? '1' : '0'); } catch(e){}
+  }
+  if (tocEl){
+    if (!tocEl.id) tocEl.id = 'pagetoc';   // the button's aria-controls target
+    var tocOff = false;
+    try { tocOff = localStorage.getItem('st2toc') === '1'; } catch(e){}
+    applyToc(tocOff);
+    // .ready enables the transitions, one frame after the saved state is in
+    requestAnimationFrame(function(){ document.body.classList.add('ready'); });
+    tocBtn.addEventListener('click', function(){
+      applyToc(!document.body.classList.contains('tocoff'));
+    });
+  } else {
+    tocBtn.style.display = 'none';
+    document.body.classList.add('ready');
+  }
+
+  // ---------- contents groups ----------
+  // Each family in the index menu starts closed, and remembers whether it was
+  // opened. Keyed by the summary text rather than by position, so inserting a
+  // family later does not shuffle everyone's saved state onto the wrong groups.
+  Array.prototype.forEach.call(
+    document.querySelectorAll('nav.toc details.tocgrp'), function(d){
+      var sum = d.querySelector('summary');
+      if (!sum) return;
+      var key = 'st2grp:' + sum.textContent.trim();
+      var saved = null;
+      try { saved = localStorage.getItem(key); } catch(e){}
+      if (saved !== null) d.open = (saved === '1');
+      d.addEventListener('toggle', function(){
+        try { localStorage.setItem(key, d.open ? '1' : '0'); } catch(e){}
+      });
+    });
+
+  // ---------- collapsible commentary boxes ----------
+  var boxes = Array.prototype.slice.call(document.querySelectorAll('details.note, details.warn, details.deep'));
+  var foldBtn = document.getElementById('fold');
+
+  function applyFold(folded){
+    boxes.forEach(function(d){ d.open = !folded; });
+    foldBtn.textContent = folded ? '💡' : '🔽';
+    foldBtn.title = folded ? 'פתח את כל תיבות ההסבר' : 'כווץ את כל תיבות ההסבר';
+    try { localStorage.setItem('st2fold', folded ? '1' : '0'); } catch(e){}
+  }
+  if (boxes.length){
+    var startFolded = false;
+    try { startFolded = localStorage.getItem('st2fold') === '1'; } catch(e){}
+    applyFold(startFolded);
+    foldBtn.addEventListener('click', function(){
+      // if anything is still open, the click folds everything; else it opens all
+      var anyOpen = boxes.some(function(d){ return d.open; });
+      applyFold(anyOpen);
+    });
+  } else {
+    foldBtn.style.display = 'none';
+  }
+
+  // printing must not silently drop folded commentary: open everything for the
+  // print job, then put it back exactly as it was
+  var beforePrint = null;
+  window.addEventListener('beforeprint', function(){
+    beforePrint = boxes.map(function(d){ return d.open; });
+    boxes.forEach(function(d){ d.open = true; });
+  });
+  window.addEventListener('afterprint', function(){
+    if (!beforePrint) return;
+    boxes.forEach(function(d, i){ d.open = beforePrint[i]; });
+    beforePrint = null;
+  });
+
+  // ---------- scrollspy ----------
+  // in-page anchors only — the contents also holds a link back to index.html
+  var links = Array.prototype.slice.call(document.querySelectorAll('nav.toc a'))
+    .filter(function(a){ return a.getAttribute('href').charAt(0) === '#'; });
+  var map = {};
+  links.forEach(function(a){ map[a.getAttribute('href').slice(1)] = a; });
+  var secs = Array.prototype.slice.call(document.querySelectorAll('section.lec'));
+  if ('IntersectionObserver' in window){
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(en){
+        var a = map[en.target.id];
+        if (!a) return;
+        if (en.isIntersecting){
+          links.forEach(function(x){ x.classList.remove('active'); });
+          a.classList.add('active');
+        }
+      });
+    }, {rootMargin:'-70px 0px -65% 0px', threshold:0});
+    secs.forEach(function(s){ io.observe(s); });
+  }
+
+  // ---------- search ----------
+  var main = document.querySelector('main');
+  var box = document.getElementById('q');
+  var info = document.getElementById('hitinfo');
+  var hits = [], cur = -1;
+
+  function clearMarks(){
+    var ms = main.querySelectorAll('mark.hit');
+    for (var i = ms.length - 1; i >= 0; i--){
+      var m = ms[i], p = m.parentNode;
+      while (m.firstChild) p.insertBefore(m.firstChild, m);
+      p.removeChild(m);
+      p.normalize();
+    }
+    hits = []; cur = -1; info.textContent = '';
+  }
+
+  function mark(term){
+    clearMarks();
+    if (!term || term.length < 2) return;
+    var low = term.toLowerCase();
+    var walker = document.createTreeWalker(main, NodeFilter.SHOW_TEXT, {
+      acceptNode: function(n){
+        if (!n.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+        var t = n.parentNode.nodeName;
+        if (t === 'SCRIPT' || t === 'STYLE' || t === 'MARK') return NodeFilter.FILTER_REJECT;
+        return n.nodeValue.toLowerCase().indexOf(low) > -1
+          ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+      }
+    });
+    var nodes = [], n;
+    while ((n = walker.nextNode())) nodes.push(n);
+    nodes.forEach(function(node){
+      var txt = node.nodeValue, l = txt.toLowerCase(), idx = 0, frag = document.createDocumentFragment(), pos;
+      while ((pos = l.indexOf(low, idx)) > -1){
+        if (pos > idx) frag.appendChild(document.createTextNode(txt.slice(idx, pos)));
+        var mk = document.createElement('mark');
+        mk.className = 'hit';
+        mk.textContent = txt.substr(pos, term.length);
+        frag.appendChild(mk);
+        hits.push(mk);
+        idx = pos + term.length;
+      }
+      if (idx < txt.length) frag.appendChild(document.createTextNode(txt.slice(idx)));
+      node.parentNode.replaceChild(frag, node);
+    });
+    info.textContent = hits.length ? ('0/' + hits.length) : 'אין תוצאות';
+    if (hits.length) go(0);
+  }
+
+  function go(i){
+    if (!hits.length) return;
+    if (cur > -1 && hits[cur]) hits[cur].classList.remove('cur');
+    cur = (i + hits.length) % hits.length;
+    hits[cur].classList.add('cur');
+    // a hit inside a folded box would be invisible — unfold its ancestors first
+    var p = hits[cur].parentNode;
+    while (p && p !== document.body){
+      if (p.tagName === 'DETAILS') p.open = true;
+      p = p.parentNode;
+    }
+    hits[cur].scrollIntoView({block:'center', behavior:'smooth'});
+    info.textContent = (cur + 1) + '/' + hits.length;
+  }
+
+  var timer;
+  box.addEventListener('input', function(){
+    clearTimeout(timer);
+    var v = box.value;
+    timer = setTimeout(function(){ mark(v.trim()); }, 220);
+  });
+  box.addEventListener('keydown', function(e){
+    if (e.key === 'Enter'){ e.preventDefault(); go(e.shiftKey ? cur - 1 : cur + 1); }
+    if (e.key === 'Escape'){ box.value = ''; clearMarks(); }
+  });
+})();
+
+  // ---------- shared comments ----------
+  // Everything below is inert unless build.py injected window.ST2C, which it
+  // only does when site.json carries a project URL and key. No config, no UI,
+  // no request -- the page stays the fully self-contained file it was.
+  (function(){
+    var C = window.ST2C;
+    var host = document.getElementById('comments');
+    if (!C || !C.url || !C.key || !host) { if (host) host.remove(); return; }
+
+    var LIMIT = {author: 40, body: 2000};
+    var rows = [];          // every comment on this page
+    var openCid = null;     // which card's form is showing
+    var navBtn = null;      // the copy of the button under the contents
+
+    // A random token kept in this browser, sent with each comment. It is what
+    // lets someone delete their own comment without an account: the server
+    // deletes a row only when the token matches the one that created it.
+    var me = null;
+    try {
+      me = localStorage.getItem('st2me');
+      if (!me) {
+        me = 'u' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+        localStorage.setItem('st2me', me);
+      }
+    } catch(e){ me = 'u' + Math.random().toString(36).slice(2); }
+    var myHash = '';
+    try {
+      crypto.subtle.digest('SHA-256', new TextEncoder().encode(me)).then(function(buf){
+        myHash = Array.prototype.map.call(new Uint8Array(buf), function(x){
+          return ('0' + x.toString(16)).slice(-2);
+        }).join('');
+        try { render(); } catch(e){}
+      });
+    } catch(e){}
+    function admin(){ try { return localStorage.getItem('st2admin') || ''; } catch(e){ return ''; } }
+    function myName(){ try { return localStorage.getItem('st2name') || ''; } catch(e){ return ''; } }
+
+    function api(path, opts){
+      opts = opts || {};
+      opts.headers = Object.assign({
+        'apikey': C.key,
+        'Authorization': 'Bearer ' + C.key,
+        'Content-Type': 'application/json'
+      }, opts.headers || {});
+      return fetch(C.url + '/rest/v1/' + path, opts);
+    }
+
+    // The page's comments, oldest first. owner_hash, not owner_token: the
+    // token is the delete credential and is not readable by visitors.
+    function loadRows(){
+      return api('comments?select=id,cid,author,body,owner_hash,created_at' +
+                 '&page=eq.' + encodeURIComponent(C.page) + '&order=created_at.asc')
+        .then(function(res){ if (!res.ok) throw new Error(res.status); return res.json(); })
+        .then(function(data){ rows = data; });
+    }
+
+    function esc(t){
+      return String(t).replace(/[&<>"]/g, function(c){
+        return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];
+      });
+    }
+    function when(iso){
+      var d = new Date(iso);
+      if (isNaN(d)) return '';
+      var p = function(n){ return (n < 10 ? '0' : '') + n; };
+      return p(d.getDate()) + '.' + p(d.getMonth()+1) + '.' + d.getFullYear() +
+             ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+    }
+
+    // ---- the cards on this page, and the heading each one goes by
+    var cards = {};
+    Array.prototype.forEach.call(document.querySelectorAll('.slide[data-cid]'), function(el){
+      var h = el.querySelector('h3');
+      cards[el.getAttribute('data-cid')] = {
+        el: el,
+        title: h ? h.textContent.replace(/\s+/g, ' ').trim() : 'כרטיס'
+      };
+    });
+
+    // ---- one comment, rendered
+    function cmtHTML(r){
+      // Visitors can read only the SHA-256 of each comment's owner token, never
+      // the token itself (which is what authorises a delete).
+      var mine = (myHash && r.owner_hash === myHash) || admin();
+      return '<div class="cmt" data-id="' + r.id + '">' +
+        '<span class="who">' + esc(r.author || 'אנונימי') + '</span>' +
+        '<span class="when">' + when(r.created_at) + '</span>' +
+        (mine ? ' <button class="del" data-id="' + r.id + '">מחיקה</button>' : '') +
+        '<p class="txt">' + esc(r.body) + '</p></div>';
+    }
+
+    // ---- the button under every card
+    function ensureRow(el){
+      var row = el.querySelector(':scope > .crow');
+      if (!row){
+        row = document.createElement('div');
+        row.className = 'crow';
+        row.innerHTML = '<button type="button" title="הוספת הערה על הכרטיס הזה">' +
+                        '💬 <span class="lbl">הערה</span></button>';
+        row.querySelector('button').addEventListener('click', function(){
+          toggle(el.getAttribute('data-cid'));
+        });
+        el.appendChild(row);
+      }
+      return row;
+    }
+
+    function paintCounts(){
+      var by = {};
+      rows.forEach(function(r){ if (r.cid){ (by[r.cid] = by[r.cid] || []).push(r); } });
+      Object.keys(cards).forEach(function(cid){
+        var el = cards[cid].el, n = (by[cid] || []).length;
+        var row = ensureRow(el);
+        var btn = row.querySelector('button');
+        btn.querySelector('.lbl').innerHTML = n
+          ? 'הערות <span class="n">' + n + '</span>'
+          : 'הערה';
+        row.classList.toggle('has', n > 0);
+      });
+    }
+
+    // ---- the form, opened under one card
+    function toggle(cid){
+      var old = document.querySelector('.cform');
+      if (old) { old.parentNode.classList.remove('open'); old.remove(); }
+      if (openCid === cid){ openCid = null; return; }
+      openCid = cid;
+      var host2 = cid === '' ? document.getElementById('cgeneral') : cards[cid].el;
+      var f = document.createElement('div');
+      f.className = 'cform';
+      f.innerHTML =
+        '<label>השם שלך</label><input class="a" maxlength="' + LIMIT.author + '" value="' + esc(myName()) + '">' +
+        '<label>ההערה</label><textarea class="b" maxlength="' + LIMIT.body + '"></textarea>' +
+        '<div class="row"><button type="button" class="go">שליחה</button>' +
+        '<button type="button" class="no">ביטול</button>' +
+        '<span class="msg"></span></div>';
+      host2.appendChild(f);
+      if (cid !== '') host2.querySelector(':scope > .crow').classList.add('open');
+      f.querySelector('.no').addEventListener('click', function(){ toggle(cid); });
+      f.querySelector('.go').addEventListener('click', function(){ send(cid, f); });
+      f.querySelector(cid === '' ? '.a' : '.b').focus();
+    }
+
+    var lastSent = 0;
+    function send(cid, f){
+      var msg = f.querySelector('.msg');
+      var author = f.querySelector('.a').value.trim();
+      var body = f.querySelector('.b').value.trim();
+      if (!author){ msg.textContent = 'צריך שם.'; return; }
+      if (!body){ msg.textContent = 'ההערה ריקה.'; return; }
+      if (Date.now() - lastSent < 5000){ msg.textContent = 'רגע אחד בין הערות.'; return; }
+      try { localStorage.setItem('st2name', author); } catch(e){}
+      msg.textContent = 'שולח…';
+      api('comments', {
+        method: 'POST',
+        // return=minimal: owner_token is write-only for visitors, so the row is
+        // not echoed back; the list is re-read instead (it carries owner_hash).
+        headers: {'Prefer': 'return=minimal'},
+        body: JSON.stringify({page: C.page, cid: cid || null,
+                              author: author, body: body, owner_token: me})
+      }).then(function(res){
+        if (!res.ok) return res.text().then(function(t){ throw new Error(t); });
+        return loadRows();
+      }).then(function(){
+        lastSent = Date.now();
+        toggle(cid);
+        render();
+      }).catch(function(err){
+        msg.textContent = 'השליחה נכשלה. ' + String(err.message || err).slice(0, 120);
+      });
+    }
+
+    function remove(id){
+      var tok = admin() || me;
+      fetch(C.url + '/rest/v1/rpc/delete_comment', {
+        method: 'POST',
+        headers: {'apikey': C.key, 'Authorization': 'Bearer ' + C.key,
+                  'Content-Type': 'application/json'},
+        body: JSON.stringify({p_id: Number(id), p_token: tok})
+      }).then(function(res){ return res.ok ? res.json() : false; })
+        .then(function(ok){
+          if (ok === true || ok === 'true'){
+            rows = rows.filter(function(r){ return String(r.id) !== String(id); });
+            render();
+          } else {
+            alert('המחיקה נדחתה — אפשר למחוק רק הערה שנכתבה מהדפדפן הזה.');
+          }
+        });
+    }
+
+    // ---- the list at the foot of the page
+    function render(){
+      paintCounts();
+      var byCid = {}, general = [], orphan = [];
+      rows.forEach(function(r){
+        if (!r.cid) general.push(r);
+        else if (cards[r.cid]) (byCid[r.cid] = byCid[r.cid] || []).push(r);
+        else orphan.push(r);
+      });
+
+      var order = Object.keys(cards).filter(function(c){ return byCid[c]; });
+      var html = '';
+      order.forEach(function(cid){
+        html += '<div class="cgroup"><div class="h">' +
+          '<a href="#cid-' + cid + '">' + esc(cards[cid].title) + '</a></div>' +
+          byCid[cid].map(cmtHTML).join('') + '</div>';
+      });
+      if (orphan.length){
+        html += '<div class="cgroup"><div class="h">הערות שהכרטיס שלהן השתנה מאז</div>' +
+                orphan.map(cmtHTML).join('') + '</div>';
+      }
+      document.getElementById('cbycard').innerHTML =
+        html || '<p class="cempty">עוד לא נכתבו הערות על כרטיסים בדף הזה.</p>';
+
+      var g = document.getElementById('cgeneral');
+      var f = g.querySelector('.cform');
+      g.innerHTML = general.length
+        ? general.map(cmtHTML).join('')
+        : '<p class="cempty">אין עדיין הערות כלליות על הדף.</p>';
+      if (f) g.appendChild(f);
+
+      // anchors, so a link from the list scrolls to the card
+      Object.keys(cards).forEach(function(cid){
+        cards[cid].el.id = 'cid-' + cid;
+      });
+      var tot = rows.length;
+      document.getElementById('ccount').textContent =
+        tot ? ' (' + tot + ')' : '';
+      if (navBtn){
+        navBtn.innerHTML = tot
+          ? '💬 הערות על הדף <span class="n">' + tot + '</span>'
+          : '💬 הערות על הדף';
+      }
+    }
+
+    document.addEventListener('click', function(e){
+      var d = e.target.closest ? e.target.closest('.del') : null;
+      if (d) remove(d.getAttribute('data-id'));
+    });
+    document.getElementById('caddgeneral').addEventListener('click', function(){ toggle(''); });
+
+    // A quiet link at the foot of the contents. It only travels to the band at
+    // the bottom of the page -- writing happens there, where there is room for a
+    // form. Sticky to the panel's bottom edge because the contents scroll on
+    // their own past about twenty sub-lectures, and on Part 6 a link after the
+    // last entry would be twenty-six rows out of view.
+    var nav = document.querySelector('nav.toc');
+    if (nav){
+      navBtn = document.createElement('a');
+      navBtn.className = 'cnavadd';
+      navBtn.href = '#comments';
+      navBtn.title = 'ההערות שנכתבו על הדף הזה';
+      navBtn.innerHTML = '💬 הערות על הדף';
+      navBtn.addEventListener('click', function(e){
+        var sec = document.getElementById('comments');
+        if (sec){ e.preventDefault(); sec.scrollIntoView({behavior: 'smooth', block: 'start'}); }
+      });
+      nav.appendChild(navBtn);
+    }
+
+    // ---- go
+    paintCounts();
+    loadRows()
+      .then(function(){ render(); })
+      .catch(function(err){
+        var why = String(err.message || err);
+        // 404 has one cause here and it is worth naming: the table has not been
+        // created yet, which is the state the site ships in.
+        var msg = why.indexOf('404') >= 0
+          ? 'טבלת ההערות עדיין לא נוצרה במסד הנתונים. יש להריץ פעם אחת את <code>_build/supabase-setup.sql</code>.'
+          : 'לא הצלחתי לטעון את ההערות (' + esc(why) + ').';
+        document.getElementById('cbycard').innerHTML = '<p class="cempty">' + msg + '</p>';
+        document.getElementById('cgeneral').innerHTML = '';
+        document.getElementById('caddgeneral').disabled = true;
+      });
+  })();
+</script>
+</body>
+</html>

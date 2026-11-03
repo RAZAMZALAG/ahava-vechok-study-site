@@ -1,0 +1,34 @@
+{
+  "course": "אהבה וחוק",
+  "course_code": "אהבה וחוק",
+  "institution": "ד\"ר תמר כץ פלד, עו\"ד",
+  "term": "קיץ 2026",
+  "description": "חומרי לימוד בעברית לקורס אהבה וחוק.",
+  "favicon_glyph": "&#931;",
+  "pages": [
+    {
+      "name": "index",
+      "out": "index.html",
+      "web": "index.html",
+      "title": "אהבה וחוק — חומרי לימוד",
+      "brand": "ראשי",
+      "srcpdf": "",
+      "count": "",
+      "kind": "index"
+    },
+    {
+      "name": "t1",
+      "out": "t1.html",
+      "web": "t1.html",
+      "title": "Topic 1",
+      "brand": "Topic 1",
+      "srcpdf": "lecture1.pdf",
+      "count": "15 slides",
+      "kind": "lecture"
+    }
+  ],
+  "_comments_example": {
+    "url": "https://YOUR-PROJECT.supabase.co",
+    "anon_key": "sb_publishable_..."
+  }
+}
